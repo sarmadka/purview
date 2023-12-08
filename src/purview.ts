@@ -27,13 +27,14 @@ import {
   PNodeRegular,
   UpdateMessage,
   PurviewEvent,
+  EventResponseMessage,
 } from "./types/ws"
 import {
   makeInputEventValidator,
   makeChangeEventValidator,
   submitEventValidator,
   keyEventValidator,
-  clientMessageValidator,
+  // clientMessageValidator,
 } from "./validators"
 import { Attrs } from "snabbdom/modules/attributes"
 import * as DevNull from "dev-null"
@@ -327,10 +328,13 @@ export function handleWebSocket(
       }
 
       const parsed = tryParseJSON(data.toString())
-      const decoded = clientMessageValidator.decode(parsed)
-      if (decoded.isRight()) {
-        await handleMessage(decoded.value, wsState, req, server)
-      }
+      // TODO: Re-enable validation and remove the try-catch
+      // const decoded = clientMessageValidator.decode(parsed)
+      // if (decoded.isRight()) {
+      try {
+        await handleMessage(parsed as ClientMessage, ws, wsState, req, server)
+      } catch (e) {}
+      // }
     })
 
     ws.on("close", async () => {
@@ -437,6 +441,7 @@ function makeStateTree(
 
 async function handleMessage(
   message: ClientMessage,
+  ws: WebSocket,
   wsState: WebSocketState,
   req: http.IncomingMessage,
   server: http.Server,
@@ -591,13 +596,23 @@ async function handleMessage(
         break
       }
 
+      let result: unknown
       if (handler.validator) {
         const decoded = handler.validator.decode(message.event)
-        if (decoded.isRight()) {
-          await handler.callback(decoded.value)
-        }
+        // TODO: Re-enable validation
+        // if (decoded.isRight()) {
+        result = await handler.callback(decoded.value)
+        // }
       } else {
-        await handler.callback()
+        result = await handler.callback()
+      }
+      if (message.callbackResolveId) {
+        const response: EventResponseMessage = {
+          type: "eventResponse",
+          eventCallbackResolveId: message.callbackResolveId,
+          retVal: result ?? null,
+        }
+        ws.send(JSON.stringify(response))
       }
       break
     }
@@ -828,14 +843,15 @@ async function makeRegularElem(
     if (root.connected) {
       parent._newEventHandlers[eventID] = {
         eventName,
-        async callback(event?: PurviewEvent): Promise<void> {
+        async callback(event?: PurviewEvent): Promise<unknown> {
           try {
-            await callback(event)
+            return await callback(event)
           } catch (error) {
             root.onError?.(error)
             if (process.env.NODE_ENV !== "test" || !root.onError) {
               throw error
             }
+            return undefined
           }
         },
         expiry: null,

@@ -39,7 +39,7 @@ export type PurviewEvent =
   | ChangeEvent<any>
   | SubmitEvent
   | KeyEvent
-export type EventCallback = (event?: PurviewEvent) => void | Promise<void>
+export type EventCallback = (event?: PurviewEvent) => void | Promise<unknown>
 
 export interface ConnectMessage {
   type: "connect"
@@ -53,6 +53,7 @@ export interface EventMessage {
   componentID: string
   eventID: string
   event?: PurviewEvent
+  callbackResolveId: string // TODO: Make nullable
 }
 
 export interface SeenEventNamesMessage {
@@ -79,4 +80,10 @@ export interface UpdateMessage {
   cssUpdates?: { newCSSRules: string[]; nextRuleIndex: number }
 }
 
-export type ServerMessage = UpdateMessage
+export interface EventResponseMessage {
+  type: "eventResponse"
+  eventCallbackResolveId: string
+  retVal: unknown
+}
+
+export type ServerMessage = UpdateMessage | EventResponseMessage

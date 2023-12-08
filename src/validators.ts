@@ -60,6 +60,7 @@ const eventMessageValidator = t.exact(
       rootID: t.string,
       componentID: t.string,
       eventID: t.string,
+      callbackResolveId: t.string, // TODO: Make nullable
     }),
     t.partial({ event: t.any }),
   ]),
